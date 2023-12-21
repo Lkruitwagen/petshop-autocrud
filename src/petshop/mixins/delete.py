@@ -6,6 +6,7 @@ from fastapi import Depends, APIRouter
 from sqlalchemy.orm import Session
 
 from petshop.core.database import get_db
+from petshop.core import exceptions
 from petshop.mixins.base import AutoCrudMixinBase
 
 
@@ -39,10 +40,28 @@ class DeleteMixin(object):
         ]
 
         def inner(*args, **kwargs) -> int:
-            Q = db.query(cls)
-            Q = Q.filter(getattr(cls, schema_cls.read_cfg.primary_key) == eval({schema_cls.read_cfg.primary_key}))
-            n_deleted = Q.delete()
-            return n_deleted
+
+            try:
+
+                db = kwargs.get('db')
+                primary_key = kwargs.get(schema_cls.read_cfg.primary_key)
+
+                Q = db.query(cls)
+                Q = Q.filter(getattr(cls, schema_cls.read_cfg.primary_key) == primary_key)
+                n_deleted = Q.delete()
+
+                if n_deleted ==0:
+                    raise exceptions.NotFoundError
+
+                db.commit()
+                return n_deleted
+
+            except Exception as e:
+                raise exceptions.handler(e)
+            finally:
+                import traceback
+                print(traceback.format_exc())
+            
 
         @wraps(inner)
         def f(*args, **kwargs):

@@ -6,6 +6,7 @@ from fastapi import Depends, APIRouter
 from sqlalchemy.orm import Session
 
 from petshop.core.database import get_db
+from petshop.core import exceptions
 from petshop.mixins.base import AutoCrudMixinBase
 
 # __all__ = ["get_db", "Depends"] # Method 1 only
@@ -57,9 +58,23 @@ class ReadMixin(object):
         ]
 
         def inner(*args, **kwargs) -> cls:
-            Q = db.query(cls)
-            Q = Q.filter(getattr(cls, schema_cls.read_cfg.primary_key) == eval({schema_cls.read_cfg.primary_key}))
-            return Q.first()
+
+            try:
+                db = kwargs.get('db')
+                primary_key = kwargs.get(schema_cls.read_cfg.primary_key)
+                Q = db.query(cls)
+                Q = Q.filter(getattr(cls, schema_cls.read_cfg.primary_key) == primary_key)
+                obj = Q.first()
+
+                if not obj:
+                    raise exceptions.NotFoundError
+                return obj
+
+            except Exception as e:
+                raise exceptions.handler(e)
+            finally:
+                import traceback
+                print(traceback.format_exc())
 
         @wraps(inner)
         def f(*args, **kwargs):

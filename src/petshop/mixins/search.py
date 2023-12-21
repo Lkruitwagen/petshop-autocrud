@@ -7,7 +7,7 @@ from datetime import date, datetime
 from fastapi import Depends, APIRouter
 from pydantic import create_model, BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from petshop.core.database import get_db
 from petshop.utils import parse_field_info, parse_type, get_base_type
@@ -20,6 +20,8 @@ class SearchParams(ABC):
     required_params = None
     pop_params = None
 
+    results_limit = None
+
     # for float, int, datetime:
     search_eq = None # is precisely equal to
     search_gt = None # greater than, list[str] | bool
@@ -30,6 +32,7 @@ class SearchParams(ABC):
     # for str:
     search_contains = None # string contains search
     search_trgm = None # string trigram search
+    search_trgm_threshold = None
 
     # router method
     description = None
@@ -134,6 +137,16 @@ class SearchMixin(object):
                     print ('unknown', name, base_type)
                     print (repr(base_type))
 
+        # add pagination
+        query_fields['limit'] = (int, Field(title='limit', default=schema_cls.search_cfg.results_limit))
+        query_fields['page'] = (int, Field(title='page', default=0))
+
+        # maybe add trgm threshold
+        if schema_cls.search_cfg.search_trgm is not None:
+            query_fields['threshold'] = (float, Field(title='threshold', default=0.7))
+
+
+
         query_model = create_model(
             schema_cls.__name__,
             __base__ = BaseModel,
@@ -188,7 +201,7 @@ class SearchMixin(object):
             )
         ]
 
-        def inner(*args, **kwargs) -> cls:
+        def inner(*args, **kwargs) -> list[cls]:
             db = kwargs.get('db')
             query = kwargs.get('query')
 
@@ -196,13 +209,14 @@ class SearchMixin(object):
 
             for name, val in query.model_dump().items():
                 if val is not None:
-                    param_name = '_'.join(name.split('_')[:-1])
+                    
 
                     # check type of param
 
-                    if param_type in [int,float,date,datetime]:
+                    if type(val) in [int,float,date,datetime]:
 
                         compare_type = name.split('_')[-1]
+                        param_name = '_'.join(name.split('_')[:-1])
 
                         if compare_type == 'eq':
                             Q = Q.filter(getattr(cls, param_name) == val)
@@ -215,28 +229,28 @@ class SearchMixin(object):
                         elif compare_type == 'lt':
                             Q = Q.filter(getattr(cls, param_name) < val)
 
-                    if param_type == str:
+                    if type(val) == str:
 
                         if schema_cls.search_cfg.search_contains and schema_cls.search_cfg.search_trgm:
                             # if contains AND trgm
                             Q = Q.filter(
-                                _or(
-                                    getattr(cls, param_name).contains(val),
-                                    func.similarity(getattr(cls, param_name), val) > query.threshold
+                                or_(
+                                    getattr(cls, name).contains(val),
+                                    func.similarity(getattr(cls, name), val) > query.threshold
                                 )
                             )
 
                         elif schema_cls.search_cfg.search_contains:
                             # if just contains
-                            Q = Q.filter(getattr(cls, param_name).contains(val))
+                            Q = Q.filter(getattr(cls, name).contains(val))
 
                         elif schema_cls.search_cfg.search_trgm:
                             # if just trgm
-                            Q = Q.filter(func.similarity(getattr(cls, param_name),val)> query.threshold)
+                            Q = Q.filter(func.similarity(getattr(cls, name),val)> query.threshold)
 
                         else:
                             # else jsut extact match
-                            Q = Q.filter(getattr(cls, param_name) == val)
+                            Q = Q.filter(getattr(cls, name) == val)
 
             # pagination
             # Count total results (without fetching)
@@ -282,5 +296,5 @@ class SearchMixin(object):
             operation_id=schema_cls.search_cfg.operation_id,
             methods=["GET"],
             status_code=200,
-            response_model=cls,
+            response_model=list[cls],
         )

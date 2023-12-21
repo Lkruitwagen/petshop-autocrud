@@ -47,10 +47,12 @@ class Human(SQLModel, ReadMixin, CreateMixin, SearchMixin,  DeleteMixin, PatchMi
         description = "Search human"
         summary = "Search human"
         operation_id = "search_human"
+        results_limit = 100
 
         # for str:
         search_contains = True # string contains search
         search_trgm = ["last_name"] # string trigram search
+        search_trgm_threshold = 0.7
 
     class delete_cfg(DeleteParams):
         primary_key = "id"
@@ -96,10 +98,12 @@ class Pet(SQLModel, ReadMixin, CreateMixin, SearchMixin, DeleteMixin, PatchMixin
         description = "Search pet"
         summary = "Search pet"
         operation_id = "search_pet"
+        results_limit = 100
 
         search_eq = True # is precisely equal to
         search_lt = True # less than, list[str] | bool
         search_lte = True # less than or equal to, list[str] | bool
+        search_trgm_threshold = 0.7
 
     class delete_cfg(DeleteParams):
         primary_key = "id"
