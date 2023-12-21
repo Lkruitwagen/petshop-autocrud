@@ -1,15 +1,16 @@
 from inspect import getmro, Parameter, signature
+from typing import Optional
 from abc import ABC
 from functools import wraps
 from datetime import date, datetime
 
 from fastapi import Depends, APIRouter
-from pydantic import create_model, BaseModel
+from pydantic import create_model, BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from petshop.core.database import get_db
-from petshop.utils import parse_field_info
+from petshop.utils import parse_field_info, parse_type, get_base_type
 from petshop.mixins.base import AutoCrudMixinBase
 
 __all__ = ["get_db", "Depends"]
@@ -36,32 +37,135 @@ class SearchParams(ABC):
     operation_id = None
     tags = None
 
-
 class SearchMixin(object):
 
     @classmethod
     def get_search_schema(cls):
+
+        def maybe_add_param(search_cfg, name):
+            add_param_fields = []
+
+            # equals param
+            if isinstance(search_cfg.search_eq, bool):
+                if search_cfg.search_eq:
+                    add_param_fields.append(name+'_eq')
+            elif isinstance(search_cfg.search_eq, list):
+                if name in search_cfg.search_eq:
+                    add_param_fields.append(name+'_eq')
+
+            # greater than param
+            if isinstance(search_cfg.search_gt, bool):
+                if search_cfg.search_gt:
+                    add_param_fields.append(name+'_gt')
+            elif isinstance(search_cfg.search_gt, list):
+                if name in search_cfg.search_gt:
+                    add_param_fields.append(name+'_gt')
+
+            # greater than or equal param
+            if isinstance(search_cfg.search_gte, bool):
+                if search_cfg.search_gte:
+                    add_param_fields.append(name+'_gte')
+            elif isinstance(search_cfg.search_gte, list):
+                if name in search_cfg.search_gte:
+                    add_param_fields.append(name+'_gte')
+
+            # less than param
+            if isinstance(search_cfg.search_lt, bool):
+                if search_cfg.search_lt:
+                    add_param_fields.append(name+'_lt')
+            elif isinstance(search_cfg.search_lt, list):
+                if name in search_cfg.search_lt:
+                    add_param_fields.append(name+'_lt')
+
+            # less than or equal param
+            if isinstance(search_cfg.search_lte, bool):
+                if search_cfg.search_lte:
+                    add_param_fields.append(name+'_lte')
+            elif isinstance(search_cfg.search_lte, list):
+                if name in search_cfg.search_lte:
+                    add_param_fields.append(name+'_lte')
+
+            return add_param_fields
+
         schema_cls = getmro(cls)[0]
         properties = schema_cls.model_json_schema().get('properties',{})
         required_properties = schema_cls.model_json_schema().get('required',[])
 
-        field_definitions = {
-            name: parse_field_info(field_info,name in required_properties)
-            for name, field_info in properties.items()
-            if name not in schema_cls.create_cfg.pop_params
-        }
+        # build the query fields
+        query_fields = {}
+        for name, field_info in properties.items():
+            if name not in schema_cls.search_cfg.pop_params:
 
-        model = create_model(
+                type_annotation = parse_type(field_info)
+
+                base_type = get_base_type(type_annotation)
+
+                if base_type in [float, int, date, datetime]:
+                    # handle filtering on numeric data
+                    add_fields = maybe_add_param(schema_cls.search_cfg, name)
+
+                    for new_field in add_fields:
+                        if name in schema_cls.search_cfg.required_params:
+                            query_fields[new_field] = (
+                                base_type, 
+                                Field(
+                                    title=new_field,
+                                    default=...
+                                )
+                            )
+                        else:
+                            query_fields[new_field] = (
+                                Optional[base_type], 
+                                Field(
+                                    title=new_field,
+                                    default=None
+                                )
+                            )
+
+                elif base_type ==str:
+                    # add filtering for string data
+                    if name in schema_cls.search_cfg.required_params:
+                        query_fields[name] = (str, Field(title=name, default=...))
+                    else:
+                        query_fields[name] = (Optional[str], Field(title=name, default=None))
+
+                else:
+                    # name
+                    print ('unknown', name, base_type)
+                    print (repr(base_type))
+
+        query_model = create_model(
             schema_cls.__name__,
             __base__ = BaseModel,
-            **field_definitions,
+            **query_fields,
         )
 
-        def bridge()
+        bridge_parameters = [
+            Parameter(
+                name,
+                Parameter.POSITIONAL_OR_KEYWORD, 
+                default=field.default, 
+                annotation=type_annotation
+            )
+            for name, (type_annotation, field) in query_fields.items()
+        ]
 
-        model.bridge = 
+        def bridge_inner(*args, **kwargs) -> cls:
+            return query_model(**kwargs)
+            
 
-        return model
+        @wraps(bridge_inner)
+        def bridge(*args, **kwargs):
+            return bridge_inner(*args, **kwargs)
+
+        # Override signature
+        sig = signature(bridge_inner)
+        sig = sig.replace(parameters=bridge_parameters)
+        bridge.__signature__ = sig
+
+        query_model.bridge = bridge
+
+        return query_model
 
 
     @classmethod
@@ -171,12 +275,12 @@ class SearchMixin(object):
 
         schema_cls.router.add_api_route(
             "",
-            cls.controller_factory_create(),
-            description=schema_cls.create_cfg.description,
-            summary=schema_cls.create_cfg.summary,
-            tags=schema_cls.create_cfg.tags,
-            operation_id=schema_cls.create_cfg.operation_id,
-            methods=["POST"],
+            cls.controller_factory_search(),
+            description=schema_cls.search_cfg.description,
+            summary=schema_cls.search_cfg.summary,
+            tags=schema_cls.search_cfg.tags,
+            operation_id=schema_cls.search_cfg.operation_id,
+            methods=["GET"],
             status_code=200,
             response_model=cls,
         )

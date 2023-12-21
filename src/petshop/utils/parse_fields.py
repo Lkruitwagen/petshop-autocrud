@@ -5,7 +5,21 @@ from typing import Dict, ForwardRef, List, Optional, Union
 from pydantic import Field
 
 
-
+def get_base_type(type_annotation):
+    """strip out any null types or optionals"""
+    # TODO
+    if 'str' in repr(type_annotation):
+        return str
+    if 'float' in repr(type_annotation):
+        return float
+    if 'int' in repr(type_annotation):
+        return int
+    if 'date' in repr(type_annotation):
+        return date
+    if 'datetime' in repr(type_annotation):
+        return datetime
+    else:
+        return type_annotation
 
 
 def parse_field_info(field, required=False):
