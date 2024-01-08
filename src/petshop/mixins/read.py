@@ -57,12 +57,16 @@ class ReadMixin(object):
             )
         ]
 
-        def inner(*args, **kwargs) -> cls:
+        # TODO: build relationshipped model
+
+        def inner(*args, **kwargs) -> cls: # TODO: return relationshipped model, not cls
 
             try:
                 db = kwargs.get('db')
                 primary_key = kwargs.get(schema_cls.read_cfg.primary_key)
                 Q = db.query(cls)
+                # TODO: selectinload using includes
+                # https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html#sqlalchemy.orm.selectinload
                 Q = Q.filter(getattr(cls, schema_cls.read_cfg.primary_key) == primary_key)
                 obj = Q.first()
 
@@ -110,5 +114,5 @@ class ReadMixin(object):
             operation_id=schema_cls.read_cfg.operation_id,
             methods=["GET"],
             status_code=200,
-            response_model=cls,
+            response_model=cls, # TODO: set response model to relationship instrumented class
         )
