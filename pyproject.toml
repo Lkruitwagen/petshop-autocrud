@@ -1,0 +1,85 @@
+[project]
+name = "petshop-autocrud"
+dynamic = ["version"]
+description = "A basic repo to experiment with Pydantic+SQLModel+AutoCrud"
+readme = "README.md"
+requires-python = ">=3.9"  # hardcoding this for now
+license = {file = "LICENSE"}
+keywords = ["energy", "systems"]
+authors = [
+  {name = "Lucas Kruitwagen", email = "lucas.kruitwagen@gmail.com" },
+]
+
+# For a list of valid classifiers, see https://pypi.org/classifiers/
+classifiers = [
+  "Development Status :: 1 - Planning",
+]
+
+dependencies = [
+    "sqlmodel",
+    "fastapi",
+    "pydantic-settings",
+    "uvicorn",
+    "sqlalchemy",
+    "psycopg2-binary",
+    "alembic"
+]
+
+[project.optional-dependencies] # Optional
+dev = [
+  "pre-commit",
+  "black",
+  "pytest",
+  "pytest-order",
+  "pytest-asyncio",
+  "pytest-cov",
+  "mypy",
+  "tox",
+  "coverage",
+]
+
+[project.urls]  # Optional
+"Homepage" = "https://github.com/transitionzero/petshop-autocrud"
+"Bug Reports" = "https://github.com/transitionzero/petshop-autocrud/issues"
+"Funding" = "https://transitionzero.org"
+"Source" = "https://github.com/transitionzero/petshop-autocrud"
+
+# This is configuration specific to the `setuptools` build backend.
+# If you are using a different build backend, you will need to change this.
+[tool.setuptools]
+# If there are data files included in your packages that need to be
+# installed, specify them here.
+# package-data = {"sample" = ["*.dat"]}
+
+[tool.setuptools.packages]
+find = {"where" = ["src"]}
+
+
+[tool.pytest.ini_options]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+    "tests.py",
+]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--doctest-modules",
+    "--doctest-glob=\\*.rst",
+    "--import-mode=importlib"
+]
+testpaths = [
+    "tests"
+]
+
+[tool.isort]
+profile = "black"
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]

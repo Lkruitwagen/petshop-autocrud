@@ -1,0 +1,23 @@
+version: "3.9" # optional since v1.27.0
+name: petshop-compose-db
+
+services:
+  db:
+    image: postgres:14.4
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PG_DB_USER=${PG_DB_USER}
+      - PG_DB_PW=${PG_DB_PW}
+      - PG_DB_HOST=${PG_DB_HOST}
+      - PG_DB_PORT=${PG_DB_PORT}
+      - PG_DB_NAME=${PG_DB_NAME}
+    restart: always
+    expose:
+      - ${PG_DB_PORT}
+    ports:
+      - ${PG_DB_PORT}:${PG_DB_PORT}
+    env_file:
+      - .env
+    volumes:
+      - ./01_initdb.sh:/docker-entrypoint-initdb.d/01_initdb.sh
+    command: -p ${PG_DB_PORT}
