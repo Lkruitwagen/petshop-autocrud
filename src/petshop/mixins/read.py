@@ -1,9 +1,12 @@
+from typing import Optional
 from inspect import getmro, Parameter, signature
 from abc import ABC
 from functools import wraps
+from pydantic import create_model, BaseModel, Field
 
 from fastapi import Depends, APIRouter
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 from petshop.core.database import get_db
 from petshop.core import exceptions
@@ -22,8 +25,53 @@ class ReadParams(ABC):
 
 class ReadMixin(object):
 
+    """
+
     @classmethod
-    def controller_factory_read(cls):
+    def build_response_model(cls):
+        schema_cls = getmro(cls)[0]
+        response_fields = {}
+        for k,field in schema_cls.model_fields.items():
+            if field.is_required:
+                response_fields[k] = (
+                    field.annotation, 
+                    Field(
+                        title=k, 
+                        default=...
+                        )
+                    )
+            else:
+                response_fields[k] = (
+                    field.annotation, 
+                    Field(
+                        title=k, 
+                        default=...
+                        )
+                    )
+                
+        for k,annotation in schema_cls.relationships.relationships.items():
+            response_fields[k] = (
+                annotation, 
+                Field(
+                    title=k,
+                    default=None
+                )
+            )
+
+        response_model = create_model(
+            schema_cls.__name__+'_response',
+            __base__ = BaseModel,
+            **response_fields,
+        )
+
+        print ('NAMESPACE')
+        print(response_model.__pydantic_parent_namespace__)
+
+        return response_model
+    """
+
+    @classmethod
+    def controller_factory_read(cls, response_model):
         schema_cls = getmro(cls)[0]
 
         # METHOD 1: using _exec_
@@ -40,7 +88,6 @@ class ReadMixin(object):
         #all_obs.update(locals())
         #exec(code, all_obs, globals())  # , locals(), globals())
 
-
         # METHOD 2: using params and function signature
         parameters = [
             Parameter(
@@ -50,6 +97,12 @@ class ReadMixin(object):
                 annotation=str
             ),
             Parameter(
+                "includes",
+                Parameter.POSITIONAL_OR_KEYWORD, 
+                default=None, 
+                annotation=Optional[str]
+            ),
+            Parameter(
                 'db',
                 Parameter.POSITIONAL_OR_KEYWORD, 
                 default=Depends(get_db), 
@@ -57,22 +110,35 @@ class ReadMixin(object):
             )
         ]
 
-        # TODO: build relationshipped model
-
-        def inner(*args, **kwargs) -> cls: # TODO: return relationshipped model, not cls
+        def inner(*args, **kwargs) -> response_model: # TODO: return relationshipped model, not cls
 
             try:
                 db = kwargs.get('db')
                 primary_key = kwargs.get(schema_cls.read_cfg.primary_key)
+                includes = kwargs.get("includes")
+
                 Q = db.query(cls)
+                for selectin in includes.split(','):
+                    Q = Q.options(selectinload(eval(f"cls.{selectin}")))
                 # TODO: selectinload using includes
                 # https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html#sqlalchemy.orm.selectinload
                 Q = Q.filter(getattr(cls, schema_cls.read_cfg.primary_key) == primary_key)
                 obj = Q.first()
 
+                # print ('OBJ',obj)
+                # print (type(obj))
+                # print (schema_cls.recursive_exclusions.exclude)
+                # print (obj.model_dump())
+                # print (obj.model_dump(exclude=schema_cls.recursive_exclusions.exclude))
+                # print ('resp model')
+                # print (obj.__dict__)
+                # print (response_model(**obj.__dict__))
+
+                rm = response_model(**obj.__dict__)
+
                 if not obj:
                     raise exceptions.NotFoundError
-                return obj
+                return rm
 
             except Exception as e:
                 raise exceptions.handler(e)
@@ -93,7 +159,7 @@ class ReadMixin(object):
 
 
     @classmethod
-    def build_read_route(cls):
+    def build_read_route(cls, response_model=None, tables=None):
 
         schema_cls = getmro(cls)[0]
 
@@ -107,12 +173,12 @@ class ReadMixin(object):
 
         schema_cls.router.add_api_route(
             "/{id}",
-            cls.controller_factory_read(),
+            cls.controller_factory_read(response_model),
             description=schema_cls.read_cfg.description,
             summary=schema_cls.read_cfg.summary,
             tags=schema_cls.read_cfg.tags,
             operation_id=schema_cls.read_cfg.operation_id,
             methods=["GET"],
             status_code=200,
-            response_model=cls, # TODO: set response model to relationship instrumented class
+            response_model=response_model,
         )
