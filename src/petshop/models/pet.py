@@ -18,20 +18,32 @@ from petshop.mixins import (
 )
 
 if TYPE_CHECKING:
-    from .human import Human
+    from .human import HumanTable
 
 
 ReadMixin.__config__ = None
 
-
-
-class Pet(SQLModel, ReadMixin, CreateMixin, SearchMixin, DeleteMixin, PatchMixin, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class PetBase(SQLModel, table=False):
+    name: str
     species: str
     birthday: date
 
-    owner_id: Optional[int] = Field(default=None, foreign_key="human.id")
-    owner_relationship: Optional["Human"] = Relationship(back_populates="pets")
+
+class PetTable(PetBase, ReadMixin, CreateMixin, SearchMixin, DeleteMixin, PatchMixin, table=True):
+    __tablename__ = "pets"
+    id: int | None = Field(default=None, primary_key=True)
+
+    owner_id: Optional[int] = Field(default=None, foreign_key="humans.id")
+    owner: Optional["HumanTable"] = Relationship(back_populates="pets", sa_relationship_kwargs={})
+
+    """
+    class relationships:
+        relationships = dict(
+            owner = Optional["Human"],
+        )
+    """ 
+
+    
 
     class read_cfg(ReadParams):
         primary_key = 'id'
@@ -76,9 +88,6 @@ class Pet(SQLModel, ReadMixin, CreateMixin, SearchMixin, DeleteMixin, PatchMixin
         tags=["pets"]
         dependencies = []
 
-Pet.build_read_route()
-Pet.build_create_route()
-Pet.build_search_route()
-Pet.build_delete_route()
-Pet.build_patch_route()
+class Pet(PetBase):
+    owner: Optional["Human"] = None
 
