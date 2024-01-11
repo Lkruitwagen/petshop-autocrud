@@ -9,7 +9,7 @@ from petshop.core.config import settings
 from petshop.core.database import Base
 
 # import tables so they are registered with SQLModel
-from petshop.demo import Human, Pet
+from petshop.models import HumanTable, PetTable, Friendship
 
 
 # this is the Alembic Config object, which provides
