@@ -64,7 +64,7 @@ class HumanTable(HumanBase, ReadMixin, CreateMixin, SearchMixin,  DeleteMixin, P
     __tablename__ = "humans"
     id: int | None = Field(default=None, primary_key=True)
 
-    pets: List["PetTable"] = Relationship(back_populates="owner")
+    pets: List["PetTable"] = Relationship(back_populates="owner", sa_relationship_kwargs={})
 
     friends_out: list["HumanTable"] = Relationship(
         link_model=Friendship,
@@ -72,7 +72,6 @@ class HumanTable(HumanBase, ReadMixin, CreateMixin, SearchMixin,  DeleteMixin, P
             "primaryjoin":"HumanTable.id == Friendship.from_human_id",
             "secondaryjoin":"HumanTable.id == Friendship.to_human_id",
             "viewonly":True,
-            "lazy": "selectin",
         },
     )
     friends_in: list["HumanTable"] = Relationship(
@@ -81,7 +80,6 @@ class HumanTable(HumanBase, ReadMixin, CreateMixin, SearchMixin,  DeleteMixin, P
             "primaryjoin":"HumanTable.id == Friendship.to_human_id",
             "secondaryjoin":"HumanTable.id == Friendship.from_human_id",
             "viewonly":True,
-            "lazy": "selectin",
         },
     )
     best_friend: "HumanTable" = Relationship(
@@ -89,7 +87,6 @@ class HumanTable(HumanBase, ReadMixin, CreateMixin, SearchMixin,  DeleteMixin, P
         sa_relationship_kwargs={
             "primaryjoin":"HumanTable.id == Friendship.to_human_id",
             "secondaryjoin":"and_(HumanTable.id == Friendship.from_human_id, Friendship.best_friend == True)",
-            "lazy": "selectin",
         },
     )   
 

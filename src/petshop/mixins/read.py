@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 from petshop.core.database import get_db
+from petshop.utils.serializer import includes_serializer
 from petshop.core import exceptions
 from petshop.mixins.base import AutoCrudMixinBase
 
@@ -115,30 +116,16 @@ class ReadMixin(object):
             try:
                 db = kwargs.get('db')
                 primary_key = kwargs.get(schema_cls.read_cfg.primary_key)
-                includes = kwargs.get("includes")
+                includes = kwargs.get("includes").split(',')
 
                 Q = db.query(cls)
-                for selectin in includes.split(','):
-                    Q = Q.options(selectinload(eval(f"cls.{selectin}")))
-                # TODO: selectinload using includes
-                # https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html#sqlalchemy.orm.selectinload
                 Q = Q.filter(getattr(cls, schema_cls.read_cfg.primary_key) == primary_key)
                 obj = Q.first()
 
-                # print ('OBJ',obj)
-                # print (type(obj))
-                # print (schema_cls.recursive_exclusions.exclude)
-                # print (obj.model_dump())
-                # print (obj.model_dump(exclude=schema_cls.recursive_exclusions.exclude))
-                # print ('resp model')
-                # print (obj.__dict__)
-                # print (response_model(**obj.__dict__))
-
-                rm = response_model(**obj.__dict__)
-
                 if not obj:
                     raise exceptions.NotFoundError
-                return rm
+
+                return includes_serializer(obj, {}, includes)
 
             except Exception as e:
                 raise exceptions.handler(e)

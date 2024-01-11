@@ -34,7 +34,7 @@ class PetTable(PetBase, ReadMixin, CreateMixin, SearchMixin, DeleteMixin, PatchM
     id: int | None = Field(default=None, primary_key=True)
 
     owner_id: Optional[int] = Field(default=None, foreign_key="humans.id")
-    owner: Optional["HumanTable"] = Relationship(back_populates="pets", sa_relationship_kwargs={"lazy": "selectin"})
+    owner: Optional["HumanTable"] = Relationship(back_populates="pets", sa_relationship_kwargs={})
 
     """
     class relationships:
@@ -89,5 +89,5 @@ class PetTable(PetBase, ReadMixin, CreateMixin, SearchMixin, DeleteMixin, PatchM
         dependencies = []
 
 class Pet(PetBase):
-    owner: Optional["Human"]
+    owner: Optional["Human"] = None
 
